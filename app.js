@@ -1,4 +1,5 @@
-/* Job Search Tracker UI — renders the tabs and form, and talks to SheetStore (store.js). */
+/* Riyan Job Search UI — renders the command center and the list, and talks to SheetStore (store.js).
+   Data model, status logic, funnel/source calculations, CSV and backup formats are unchanged. */
 (() => {
   const KEY = 'jt-ui';                      // per-device UI preferences (table/board view)
 
@@ -29,19 +30,45 @@
   const isStart = (a) => a.status === 'applied' || a.status === 'contacted';
   const INTERVIEW_IDX = ORDER.int_hr;
   const SOURCES = ['LinkedIn', 'Referral', 'Website perusahaan', 'Job portal', 'Lainnya'];
-  const STALE_DAYS = 14;
+  const WARN_DAYS = 8, STALE_DAYS = 15;     // days without update: 0–7 neutral, 8–14 follow up, 15+ stale
+  // visual family of each status, so color is never the only signal (the pill always carries the label too)
+  const TONE = { applied: 'early', contacted: 'early', screening: 'progress', test: 'progress', int_hr: 'interview', int_user: 'interview',
+    final: 'interview', offer: 'offer', accepted: 'offer', rejected: 'rejected', ghosted: 'closed', withdrawn: 'closed' };
 
   const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const today = new Date(); today.setHours(0, 0, 0, 0);
+
+  // ---------- Util ----------
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const parse = (s) => { if (!s) return null; const d = new Date(String(s).slice(0, 10) + 'T00:00:00'); return isNaN(d) ? null : d; };
+  const diffDays = (s) => { const d = parse(s); return d ? Math.round((today - d) / 864e5) : null; };
+  const fmtDate = (s) => { const d = parse(s); return d ? d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'; };
+  const fmtShort = (s) => { const d = parse(s); return d ? d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '—'; };
+  const pct = (a, b) => b ? Math.round((a / b) * 100) + '%' : '—';
+  const reached = (a) => BY_ID[a.status]?.group === 'closed' ? (ORDER[a.lastStage] ?? 0) : (ORDER[a.status] ?? 0);
+  const groupOf = (a) => BY_ID[a.status]?.group || 'active';
+  const sinceUpdate = (a) => diffDays(a.updatedAt || a.appliedDate);
+  const isOpen = (a) => groupOf(a) !== 'closed' && a.status !== 'accepted';
+  const pill = (status) => `<span class="pill st-${TONE[status] || 'early'}">${esc(BY_ID[status]?.label || status || '—')}</span>`;
+  const ageCls = (n) => n === null ? '' : n >= STALE_DAYS ? 'hot-age' : n >= WARN_DAYS ? 'warn-age' : '';
+  const ageTxt = (n) => n === null ? '' : n === 0 ? 'diupdate hari ini' : `${n} hari sejak update`;
+  const uid = () => 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  let toastT;
+  function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => (t.hidden = true), 2800); }
+
+  $('#todayLbl').textContent = today.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
   // ---------- Penyimpanan: Google Sheets lewat store.js (cache di browser ini) ----------
   let apps = [];
   let loaded = false;
   let mode = 'local';
   let pending = 0;
+  const SYNC_TXT = { sheets: 'Tersinkron', cache: 'Offline', local: 'Hanya di perangkat' };
   function setStatus(s, msg) {
-    const el = $('#status'); el.dataset.s = s;
-    $('#status-t').textContent = msg || (s === 'saving' ? 'Menyimpan…' : s === 'error' ? 'Gagal menyimpan' : mode === 'local' ? 'Tersimpan di perangkat' : 'Tersimpan');
+    const el = $('#status');
+    el.dataset.s = s === 'saved' && mode === 'local' ? 'local' : s;
+    $('#status-t').textContent = msg || (s === 'saving' ? 'Menyimpan…' : s === 'error' ? 'Sinkron tertunda' : SYNC_TXT[mode]);
   }
   async function reload() { apps = await SheetStore.all(); render(); }
   // Penulisan yang sedang berjalan dihitung di `pending`; status kembali "Tersinkron" setelah semuanya selesai
@@ -52,27 +79,22 @@
     await reload();                                   // the cache already holds the change
     await job;
     pending--;
-    if (failed) setStatus('error', `${SheetStore.pending()} belum terkirim`);
-    else if (!pending) setStatus('saved', mode === 'local' ? null : 'Tersinkron');
+    if (failed) setStatus('error', `${SheetStore.pending()} menunggu sinkron`);
+    else if (!pending) setStatus('saved');
     return true;
   }
   const putApp = (a) => write(() => SheetStore.set(a));
   const removeApp = (id) => write(() => SheetStore.remove(id));
 
-  // ---------- Util ----------
-  const $ = (s) => document.querySelector(s);
-  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const parse = (s) => { if (!s) return null; const d = new Date(s + 'T00:00:00'); return isNaN(d) ? null : d; };
-  const diffDays = (s) => { const d = parse(s); return d ? Math.round((today - d) / 864e5) : null; };
-  const fmtDate = (s) => { const d = parse(s); return d ? d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'; };
-  const pct = (a, b) => b ? Math.round((a / b) * 100) + '%' : '—';
-  const reached = (a) => BY_ID[a.status]?.group === 'closed' ? (ORDER[a.lastStage] ?? 0) : (ORDER[a.status] ?? 0);
-  const groupOf = (a) => BY_ID[a.status]?.group || 'active';
-  const uid = () => 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  let toastT;
-  function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => (t.hidden = true), 2600); }
-
-  $('#todayLbl').textContent = today.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  // status change from the table, the cards or the board: same rule as before for "Berhenti di tahap"
+  function changeStatus(id, status) {
+    const cur = apps.find((x) => x.id === id);
+    if (!cur || cur.status === status || !BY_ID[status]) return;
+    const a = { ...cur, status, updatedAt: iso(today) };
+    const prev = cur.status;
+    if (BY_ID[a.status].group === 'closed' && !a.lastStage) a.lastStage = BY_ID[prev].group === 'closed' ? 'applied' : (prev === 'offer' || prev === 'accepted' ? 'final' : prev);
+    putApp(a).then((ok) => ok && toast(`${a.company}: status jadi ${BY_ID[a.status].label}`));
+  }
 
   // ---------- Isi pilihan ----------
   const opt = (v, l) => `<option value="${esc(v)}">${esc(l)}</option>`;
@@ -88,63 +110,98 @@
   let sort = { key: 'appliedDate', dir: -1 };
 
   function render() {
-    renderKpis(); renderTodo(); renderFunnel(); renderSources(); renderList();
+    const acts = actionItems();
+    renderHealth(acts); renderActions(acts); renderFunnel(); renderSources(); renderTrend(); renderPipeline(); renderList();
   }
 
-  function renderKpis() {
+  // ----- what needs attention: built only from nextStep/nextDate and the last update date -----
+  function actionItems() {
+    const items = [];
+    apps.filter(isOpen).forEach((a) => {
+      const nd = parse(a.nextDate);
+      const since = sinceUpdate(a);
+      if (nd) {
+        const inDays = Math.round((nd - today) / 864e5);
+        if (inDays < 0) return items.push({ a, g: 'overdue', key: inDays, urg: `Terlambat ${-inDays} hari`, what: a.nextStep || 'Langkah berikutnya', date: a.nextDate });
+        if (inDays === 0) return items.push({ a, g: 'today', key: 0, urg: 'Hari ini', what: a.nextStep || 'Langkah berikutnya', date: a.nextDate });
+        if (inDays <= 7) return items.push({ a, g: 'soon', key: inDays, urg: inDays === 1 ? 'Besok' : `${inDays} hari lagi`, what: a.nextStep || 'Langkah berikutnya', date: a.nextDate });
+        return;                                       // scheduled further out: nothing to do yet
+      }
+      if (since === null || groupOf(a) !== 'active') return;
+      if (since >= STALE_DAYS) items.push({ a, g: 'stale', key: -since, urg: `Tidak ada update ${since} hari`, what: isStart(a) ? 'Follow up, atau tandai "Tidak ada kabar"' : 'Tanyakan update proses', date: a.updatedAt || a.appliedDate });
+      else if (since >= WARN_DAYS) items.push({ a, g: 'followup', key: -since, urg: `${since} hari sejak update`, what: isStart(a) ? 'Follow up ke recruiter' : 'Tanyakan update proses', date: a.updatedAt || a.appliedDate });
+    });
+    return items;
+  }
+
+  function renderHealth(acts) {
     const n = apps.length;
     const active = apps.filter((a) => groupOf(a) === 'active');
     const responded = apps.filter((a) => reached(a) >= 1);
     const interviewed = apps.filter((a) => reached(a) >= INTERVIEW_IDX);
     const offers = apps.filter((a) => reached(a) >= ORDER.offer);
     const last30 = apps.filter((a) => { const d = diffDays(a.appliedDate); return d !== null && d <= 30; }).length;
-    $('#k-total').textContent = n;
-    $('#k-total-m').textContent = `${last30} dalam 30 hari terakhir`;
-    $('#k-active').textContent = active.length;
-    const waiting = active.filter(isStart).length;
-    $('#k-active-m').textContent = `${waiting} masih menunggu respon`;
-    $('#k-resp').textContent = pct(responded.length, n);
-    $('#k-int').textContent = interviewed.length;
-    $('#k-int-m').textContent = `${pct(interviewed.length, n)} dari semua lamaran`;
-    $('#k-offer').textContent = offers.length;
     const acc = apps.filter((a) => a.status === 'accepted').length;
-    $('#k-offer-m').textContent = acc ? `${acc} diterima` : `${pct(offers.length, interviewed.length)} dari yang interview`;
+    $('#h-total').textContent = n; $('#h-active').textContent = active.length; $('#h-resp').textContent = pct(responded.length, n);
+    $('#k-total').textContent = n; $('#k-total-m').textContent = `${last30} dalam 30 hari`;
+    $('#k-active').textContent = active.length; $('#k-active-m').textContent = `${active.filter(isStart).length} menunggu respon`;
+    $('#k-resp').textContent = pct(responded.length, n);
+    $('#k-int').textContent = interviewed.length; $('#k-int-m').textContent = `${pct(interviewed.length, n)} dari semua`;
+    $('#k-offer').textContent = offers.length; $('#k-offer-m').textContent = acc ? `${acc} diterima` : `${pct(offers.length, interviewed.length)} dari interview`;
 
-    // Kalimat ringkasan
+    // one interpretation, picked from what the data actually shows
+    const urgent = acts.filter((x) => x.g === 'overdue' || x.g === 'today').length;
+    const follow = acts.filter((x) => x.g === 'followup' || x.g === 'stale').length;
+    const wk = weekCounts(2);
     let t;
     if (!loaded) t = 'Memuat data lamaran…';
-    else if (!n) t = 'Belum ada lamaran. Klik "Tambah lamaran" untuk mulai mencatat.';
-    else {
-      const bestSrc = SOURCES.map((s) => { const r = apps.filter((a) => a.source === s); return { s, n: r.length, i: r.filter((a) => reached(a) >= INTERVIEW_IDX).length }; })
-        .filter((x) => x.n >= 2).sort((a, b) => b.i / b.n - a.i / a.n)[0];
-      t = `${active.length} dari ${n} lamaran masih berjalan, ${interviewed.length} sudah sampai interview.`;
-      if (bestSrc && bestSrc.i) t += ` ${bestSrc.s} paling efektif: ${pct(bestSrc.i, bestSrc.n)} lamarannya lanjut ke interview.`;
-    }
+    else if (!n) t = 'Belum ada lamaran tercatat. Mulai dengan menambah lamaran pertama.';
+    else if (urgent) t = `${urgent} jadwal lewat atau jatuh hari ini. Itu prioritas Anda sekarang.`;
+    else if (follow) t = `Pipeline berjalan, tapi ${follow} lamaran perlu follow up. Itu prioritas Anda sekarang.`;
+    else if (!active.length && !offers.length) t = 'Tidak ada proses yang sedang berjalan. Saatnya menambah lamaran baru.';
+    else if (wk[1] === 0 && wk[0] === 0) t = 'Belum ada lamaran baru dalam 2 minggu terakhir. Jaga ritme agar pipeline tetap terisi.';
+    else t = `Pipeline aktif dan semua lamaran sudah terpantau. ${interviewed.length} sudah sampai interview.`;
     $('#takeaway').textContent = t;
   }
 
-  function renderTodo() {
-    const items = [];
-    apps.forEach((a) => {
-      if (groupOf(a) === 'closed' || a.status === 'accepted') return;
-      const nd = parse(a.nextDate);
-      if (nd) {
-        const inDays = Math.round((nd - today) / 864e5);
-        if (inDays >= -3 && inDays <= 7) {
-          const lbl = inDays < 0 ? `${-inDays} hari lewat` : inDays === 0 ? 'Hari ini' : inDays === 1 ? 'Besok' : `${inDays} hari lagi`;
-          items.push({ a, sortKey: inDays, cls: inDays < 0 ? 'late' : 'soon', when: lbl, what: a.nextStep || BY_ID[a.status].label });
-          return;
-        }
-      }
-      const since = diffDays(a.updatedAt || a.appliedDate);
-      if (groupOf(a) === 'active' && since !== null && since > STALE_DAYS && !nd) {
-        items.push({ a, sortKey: 100 - since, cls: 'late', when: `${since} hari tanpa update`, what: isStart(a) ? 'Follow up ke recruiter atau tandai "Tidak ada kabar"' : 'Tanyakan update proses' });
-      }
-    });
-    items.sort((x, y) => x.sortKey - y.sortKey);
-    $('#todo').innerHTML = items.length
-      ? items.map((x) => `<li data-id="${esc(x.a.id)}" tabindex="0"><span class="when ${x.cls}">${esc(x.when)}</span><span class="what"><b>${esc(x.a.company)} · ${esc(x.a.position)}</b><span>${esc(x.what)}</span></span><span class="pill g-${groupOf(x.a)}">${esc(BY_ID[x.a.status].label)}</span></li>`).join('')
-      : '<li class="empty" style="background:none;cursor:default">Tidak ada jadwal atau follow-up yang mendesak.</li>';
+  const GROUPS = [
+    ['overdue', 'Terlambat'], ['today', 'Hari ini'], ['soon', '7 hari ke depan'], ['followup', 'Follow up'], ['stale', 'Tanpa kabar 15+ hari'],
+  ];
+  let rescheduling = null;
+  function renderActions(acts) {
+    const badge = $('#actionsCount');
+    badge.hidden = !acts.length;
+    badge.textContent = `${acts.length} item`;
+    badge.classList.toggle('hot', acts.some((x) => x.g === 'overdue' || x.g === 'stale'));
+    if (!loaded) { $('#actions').innerHTML = '<p class="empty">Memuat…</p>'; return; }
+    if (!acts.length) {
+      $('#actions').innerHTML = `<div class="all-clear"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>${apps.length ? 'Tidak ada jadwal atau follow-up yang mendesak.' : 'Belum ada lamaran. Tambahkan lamaran pertama Anda.'}</div>`;
+      return;
+    }
+    $('#actions').innerHTML = GROUPS.map(([g, title]) => {
+      const list = acts.filter((x) => x.g === g).sort((x, y) => x.key - y.key);
+      if (!list.length) return '';
+      return `<div class="agroup" data-g="${g}"><h3>${title}<span class="n">${list.length}</span></h3><ul class="alist">${list.map((x) => {
+        const scheduled = g === 'overdue' || g === 'today' || g === 'soon';
+        const resch = rescheduling === x.a.id
+          ? `<span class="resched"><label class="sr" for="rs-${esc(x.a.id)}">Tanggal baru</label><input type="date" id="rs-${esc(x.a.id)}" data-resched-date="${esc(x.a.id)}" value="${esc(x.a.nextDate || iso(today))}"><button type="button" class="btn sm primary" data-resched-save="${esc(x.a.id)}">Simpan</button></span>`
+          : `<button type="button" class="btn sm" data-resched="${esc(x.a.id)}">Jadwal ulang</button>`;
+        return `<li class="aitem" data-g="${g}">
+          <span class="bar" aria-hidden="true"></span>
+          <div class="body">
+            <div class="t1"><b>${esc(x.a.company)}</b>${pill(x.a.status)}</div>
+            <div class="t2">${esc(x.a.position)}</div>
+            <div class="t3"><span class="urg">${esc(x.urg)}</span><span>${esc(x.what)}</span>${scheduled && x.date ? `<span class="age">${fmtShort(x.date)}</span>` : ''}</div>
+          </div>
+          <div class="acts">
+            <button type="button" class="btn sm" data-edit="${esc(x.a.id)}">Buka</button>
+            ${scheduled
+              ? `<button type="button" class="btn sm" data-done="${esc(x.a.id)}">Tandai selesai</button>${resch}`
+              : `<button type="button" class="btn sm" data-touched="${esc(x.a.id)}">Sudah follow up</button>${resch}`}
+          </div>
+        </li>`;
+      }).join('')}</ul></div>`;
+    }).join('');
   }
 
   function renderFunnel() {
@@ -152,25 +209,80 @@
     const counts = FUNNEL.map((s, i) => apps.filter((a) => reached(a) >= i).length);
     $('#funnel').innerHTML = FUNNEL.map((s, i) => {
       const c = counts[i];
-      const conv = i === 0 ? '' : `<small>${pct(c, counts[i - 1])}</small>`;
-      return `<div class="frow ${s.group === 'win' ? 'win' : ''}"><span class="lbl" title="${esc(s.label)}">${esc(s.label)}</span><div class="track"><div class="fill" style="width:${n ? (c / n) * 100 : 0}%"></div></div><span class="num">${c}${conv}</span></div>`;
-    }).join('') + `<p class="note">Persentase kecil = konversi dari tahap sebelumnya.</p>`;
+      const conv = i === 0 ? 'dari total' : `${pct(c, counts[i - 1])}`;
+      const cls = [i >= INTERVIEW_IDX ? 'int' : '', c === 0 ? 'zero' : ''].join(' ');
+      return `<li class="frow ${cls}"><span class="lbl" title="${esc(s.label)}">${esc(s.label)}</span><div class="track" aria-hidden="true"><div class="fill" style="width:${n ? (c / n) * 100 : 0}%"></div></div><span class="num">${c}<small>${conv}</small></span></li>`;
+    }).join('') + `<li class="funnel-note">Persentase = konversi dari tahap sebelumnya. Hijau = sudah sampai interview.</li>`;
   }
 
   function renderSources() {
-    const max = Math.max(1, ...SOURCES.map((s) => apps.filter((a) => a.source === s).length));
-    $('#sources').innerHTML = SOURCES.map((s) => {
+    const stats = SOURCES.map((s) => {
       const r = apps.filter((a) => a.source === s);
-      if (!r.length && s === 'Lainnya') return '';
-      const g = { active: 0, win: 0, closed: 0 };
-      r.forEach((a) => g[groupOf(a)]++);
-      const iv = r.filter((a) => reached(a) >= INTERVIEW_IDX).length;
-      const w = (k) => (g[k] / max) * 100;
-      return `<div class="src"><div class="src-top"><b>${esc(s)}</b><span>${r.length} lamaran · ${iv} interview (${pct(iv, r.length)})</span></div>
-        <div class="stack" role="img" aria-label="${esc(s)}: ${g.active} berjalan, ${g.win} offering, ${g.closed} ditutup">
-          <i class="seg-active" style="width:${w('active')}%"></i><i class="seg-win" style="width:${w('win')}%"></i><i class="seg-closed" style="width:${w('closed')}%"></i>
-        </div></div>`;
+      return { s, n: r.length, i: r.filter((a) => reached(a) >= INTERVIEW_IDX).length };
+    }).filter((x) => x.n || x.s !== 'Lainnya');
+    const max = Math.max(1, ...stats.map((x) => x.n));
+    // flags only when there is enough data: at least 2 applications per compared source
+    const enough = stats.filter((x) => x.n >= 2);
+    const best = enough.filter((x) => x.i > 0).sort((a, b) => b.i / b.n - a.i / a.n || b.n - a.n)[0];
+    const low = best && enough.filter((x) => x !== best && x.n >= 3 && x.i / x.n < best.i / best.n).sort((a, b) => a.i / a.n - b.i / b.n || b.n - a.n)[0];
+    $('#srcFlags').innerHTML = best
+      ? `<span class="flag best">Sumber terbaik <b>${esc(best.s)}</b> · ${pct(best.i, best.n)} sampai interview</span>${low ? `<span class="flag low">Konversi rendah <b>${esc(low.s)}</b> · ${pct(low.i, low.n)}</span>` : ''}`
+      : `<span class="flag info">Data belum cukup untuk menyimpulkan sumber terbaik.</span>`;
+    $('#sources').innerHTML = stats.map((x) => `
+      <div class="src${best && x === best ? ' is-best' : ''}">
+        <span class="name">${esc(x.s)}</span>
+        <span class="rate">${x.n ? pct(x.i, x.n) : '—'}</span>
+        <span class="meta"><span>${x.n} lamaran · ${x.i} interview</span><span class="meter" aria-hidden="true"><i class="m-int" style="width:${(x.i / max) * 100}%"></i><i class="m-all" style="width:${((x.n - x.i) / max) * 100}%"></i></span></span>
+      </div>`).join('');
+  }
+
+  // applications per week (Monday start), counted by tanggal apply / dihubungi
+  function weekStart(d) { const x = new Date(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
+  function weekCounts(weeks) {
+    const start0 = weekStart(today);
+    return Array.from({ length: weeks }, (_, k) => {
+      const s = new Date(start0); s.setDate(s.getDate() - 7 * (weeks - 1 - k));
+      const e = new Date(s); e.setDate(e.getDate() + 7);
+      return apps.filter((a) => { const d = parse(a.appliedDate); return d && d >= s && d < e; }).length;
+    });
+  }
+  function renderTrend() {
+    const W = 8, counts = weekCounts(W);
+    const start0 = weekStart(today);
+    const labels = counts.map((_, k) => { const s = new Date(start0); s.setDate(s.getDate() - 7 * (W - 1 - k)); return s.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }); });
+    const total = counts.reduce((x, y) => x + y, 0);
+    const avg = total / W;
+    const max = Math.max(1, ...counts, Math.ceil(avg));
+    const w = 560, h = 190, padL = 8, padR = 8, padT = 22, padB = 30, bw = (w - padL - padR) / W;
+    const y = (v) => padT + (h - padT - padB) * (1 - v / max);
+    const bars = counts.map((c, k) => {
+      const x = padL + k * bw + bw * 0.18, bwid = bw * 0.64, top = c ? y(c) : h - padB - 3;
+      return `<rect class="bar-rect${k === W - 1 ? ' now' : ''}${c ? '' : ' zero'}" x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${bwid.toFixed(1)}" height="${(h - padB - top).toFixed(1)}" rx="4"><title>${labels[k]}: ${c} lamaran</title></rect>
+        <text class="val" x="${(x + bwid / 2).toFixed(1)}" y="${(top - 6).toFixed(1)}" text-anchor="middle">${c}</text>
+        <text x="${(x + bwid / 2).toFixed(1)}" y="${h - 10}" text-anchor="middle">${k === W - 1 ? 'Minggu ini' : labels[k]}</text>`;
     }).join('');
+    const ay = y(avg);
+    $('#trend').innerHTML = `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Lamaran per minggu, 8 minggu terakhir: ${counts.join(', ')}">
+      <line class="grid-line" x1="${padL}" x2="${w - padR}" y1="${h - padB}" y2="${h - padB}"/>
+      ${bars}
+      ${total ? `<line class="avg-line" x1="${padL}" x2="${w - padR}" y1="${ay.toFixed(1)}" y2="${ay.toFixed(1)}"/><text class="avg-lbl" x="${w - padR}" y="${(ay - 6).toFixed(1)}" text-anchor="end">rata-rata ${avg.toFixed(1)}/minggu</text>` : ''}
+    </svg>`;
+    const thisWeek = counts[W - 1];
+    $('#trendNote').textContent = total
+      ? `${total} lamaran dalam 8 minggu terakhir, rata-rata ${avg.toFixed(1)} per minggu. Minggu ini: ${thisWeek}.`
+      : 'Belum ada lamaran dalam 8 minggu terakhir.';
+  }
+
+  function renderPipeline() {
+    const rows = apps.filter(isOpen).sort((x, y) => reached(y) - reached(x) || (sinceUpdate(y) ?? 0) - (sinceUpdate(x) ?? 0));
+    $('#pipeline').innerHTML = rows.length ? rows.map((a) => {
+      const since = sinceUpdate(a);
+      return `<li class="prow">
+        <div class="who"><b>${esc(a.company)}</b><span>${esc(a.position)}</span></div>
+        <div class="right">${pill(a.status)}<button type="button" class="btn sm ghost" data-edit="${esc(a.id)}" aria-label="Lihat ${esc(a.company)}">Lihat</button></div>
+        <div class="next"><span>Apply ${fmtShort(a.appliedDate)}</span><span class="age ${ageCls(since)}">${ageTxt(since)}</span>${a.nextStep || a.nextDate ? `<span>Berikutnya: <b>${esc(a.nextStep || '—')}</b>${a.nextDate ? ` · ${fmtShort(a.nextDate)}` : ''}</span>` : ''}</div>
+      </li>`;
+    }).join('') : `<li class="empty">${loaded ? 'Tidak ada lamaran yang sedang berjalan.' : 'Memuat…'}</li>`;
   }
 
   function filtered() {
@@ -186,9 +298,11 @@
 
   function sortRows(rows) {
     const k = sort.key;
-    const val = (a) => k === 'status' ? (ALL.findIndex((s) => s.id === a.status)) : (a[k] || (k.endsWith('Date') ? (sort.dir > 0 ? '9999' : '0000') : ''));
+    const val = (a) => k === 'status' ? (ALL.findIndex((s) => s.id === a.status)) : (String(a[k] || '').toLowerCase() || (k.endsWith('Date') ? (sort.dir > 0 ? '9999' : '0000') : ''));
     return rows.slice().sort((x, y) => { const a = val(x), b = val(y); return (a > b ? 1 : a < b ? -1 : 0) * sort.dir; });
   }
+
+  const emptyMsg = () => !loaded ? 'Memuat…' : apps.length ? 'Tidak ada lamaran yang cocok dengan pencarian atau filter.' : 'Belum ada lamaran. Ketuk "Tambah lamaran" untuk mencatat yang pertama.';
 
   function renderList() {
     const rows = sortRows(filtered());
@@ -199,64 +313,129 @@
       b.textContent = b.textContent.replace(/ [↑↓]$/, '') + (b.dataset.sort === sort.key ? (sort.dir > 0 ? ' ↑' : ' ↓') : '');
     });
 
+    const statusSel = (a) => `<select class="st-${TONE[a.status] || 'early'}" data-status="${esc(a.id)}" aria-label="Status ${esc(a.company)}">${stageOptions}</select>`;
     $('#tbody').innerHTML = rows.length ? rows.map((a) => {
-      const d = diffDays(a.appliedDate);
-      const g = groupOf(a);
-      const statusSel = `<select class="g-${g}" data-status="${esc(a.id)}" aria-label="Status ${esc(a.company)}">${stageOptions}</select>`;
-      const link = a.link ? ` · <a href="${esc(a.link)}" target="_blank" rel="noopener">lowongan</a>` : '';
+      const since = sinceUpdate(a);
+      const nd = parse(a.nextDate);
+      const late = nd && nd < today && isOpen(a);
       const extra = [a.workType, a.location].filter(Boolean).join(' · ');
       return `<tr data-id="${esc(a.id)}">
-        <td><div class="co">${esc(a.company)}</div><div class="pos">${esc(a.position)}</div>${extra || link ? `<div class="days">${esc(extra)}${link}</div>` : ''}</td>
-        <td><span class="chip">${esc(a.source || '—')}</span>${a.referrer ? `<div class="days">via ${esc(a.referrer)}</div>` : ''}</td>
-        <td>${fmtDate(a.appliedDate)}${d !== null ? `<div class="days">${d} hari lalu</div>` : ''}</td>
-        <td>${statusSel}${g === 'closed' && a.lastStage ? `<div class="days">di tahap ${esc(BY_ID[a.lastStage]?.label || '')}</div>` : ''}</td>
-        <td>${a.nextStep ? esc(a.nextStep) : '<span class="days">—</span>'}${a.nextDate ? `<div class="days">${fmtDate(a.nextDate)}</div>` : ''}</td>
-        <td style="max-width:260px">${a.notes ? esc(a.notes) : '<span class="days">—</span>'}</td>
-        <td class="rowact"><button type="button" class="ghost" data-edit="${esc(a.id)}">Edit</button></td>
+        <td><div class="co">${esc(a.company)}</div><div class="pos">${esc(a.position)}</div>${extra ? `<div class="sub">${esc(extra)}</div>` : ''}</td>
+        <td>${statusSel(a)}<div class="sub age ${isOpen(a) ? ageCls(since) : ''}">${groupOf(a) === 'closed' && a.lastStage ? `di tahap ${esc(BY_ID[a.lastStage]?.label || '')}` : ageTxt(since)}</div></td>
+        <td><span class="chip">${esc(a.source || '—')}</span>${a.referrer ? `<div class="sub">via ${esc(a.referrer)}</div>` : ''}</td>
+        <td>${fmtDate(a.appliedDate)}</td>
+        <td>${a.nextStep ? esc(a.nextStep) : '<span class="sub">—</span>'}</td>
+        <td>${a.nextDate ? `<span class="${late ? 'age hot-age' : ''}">${fmtDate(a.nextDate)}${late ? ' · lewat' : ''}</span>` : '<span class="sub">—</span>'}</td>
+        <td class="rowact"><button type="button" class="btn sm ghost" data-edit="${esc(a.id)}">Detail</button></td>
       </tr>`;
-    }).join('') : `<tr><td colspan="7" class="empty">${!loaded ? 'Memuat…' : apps.length ? 'Tidak ada lamaran yang cocok dengan filter.' : 'Belum ada lamaran. Klik "+ Tambah lamaran" di atas untuk mencatat yang pertama.'}</td></tr>`;
-    rows.forEach((a) => { const s = document.querySelector(`select[data-status="${CSS.escape(a.id)}"]`); if (s) s.value = a.status; });
+    }).join('') : `<tr><td colspan="7" class="empty">${emptyMsg()}</td></tr>`;
+
+    // phones: one card per application instead of the wide table
+    $('#cardView').innerHTML = rows.length ? rows.map((a) => {
+      const since = sinceUpdate(a);
+      const next = a.nextStep || a.nextDate ? `<span class="acard-next">Berikutnya: ${esc(a.nextStep || '—')}${a.nextDate ? ` · ${fmtShort(a.nextDate)}` : ''}</span>` : '';
+      return `<article class="acard">
+        <button type="button" class="acard-main" data-edit="${esc(a.id)}">
+          <span class="acard-top"><b>${esc(a.company)}</b><span class="age ${isOpen(a) ? ageCls(since) : ''}">${since !== null ? since + ' hr' : ''}</span></span>
+          <span class="pos">${esc(a.position)}</span>
+          <span class="acard-meta"><span class="chip">${esc(a.source || '—')}</span><span class="age">Apply ${fmtShort(a.appliedDate)}</span></span>
+          ${next}
+        </button>
+        ${statusSel(a)}
+      </article>`;
+    }).join('') : `<p class="empty">${emptyMsg()}</p>`;
+    rows.forEach((a) => document.querySelectorAll(`select[data-status="${CSS.escape(a.id)}"]`).forEach((s) => { s.value = a.status; }));
 
     const cols = [...STAGES.map((s) => ({ key: s.id, label: s.label, test: (a) => a.status === s.id })), { key: 'closed', label: 'Ditutup', test: (a) => groupOf(a) === 'closed' }];
+    const dotColor = { early: 'var(--muted)', progress: 'var(--brand)', interview: 'var(--success)', offer: 'var(--success)', closed: 'var(--danger)' };
     $('#boardView').innerHTML = cols.map((c) => {
       const items = rows.filter(c.test);
-      return `<div class="col"><div class="col-head">${esc(c.label)}<span>${items.length}</span></div>${items.map((a) => `
-        <button type="button" class="kcard" data-edit="${esc(a.id)}"><b>${esc(a.company)}</b><span class="pos">${esc(a.position)}</span>
-        <span class="row"><span class="chip">${esc(a.source || '—')}</span><span>${c.key === 'closed' ? esc(BY_ID[a.status].label) : (diffDays(a.appliedDate) ?? '–') + ' hari'}</span></span></button>`).join('')}</div>`;
+      return `<div class="col" data-col="${c.key}"><div class="col-head"><span><i class="dotc" style="background:${dotColor[TONE[c.key] || 'closed']}"></i>${esc(c.label)}</span><span class="n">${items.length}</span></div>${items.map((a) => {
+        const since = sinceUpdate(a);
+        return `<button type="button" class="kcard" draggable="true" data-id="${esc(a.id)}" data-edit="${esc(a.id)}"><b>${esc(a.company)}</b><span class="pos">${esc(a.position)}</span>
+          ${a.nextStep ? `<span class="knext">${esc(a.nextStep)}${a.nextDate ? ` · ${fmtShort(a.nextDate)}` : ''}</span>` : ''}
+          <span class="row">${c.key === 'closed' ? pill(a.status) : `<span class="chip">${esc(a.source || '—')}</span>`}<span class="age ${isOpen(a) ? ageCls(since) : ''}">${since !== null ? since + ' hari' : ''}</span></span></button>`;
+      }).join('')}</div>`;
     }).join('');
   }
 
   // ---------- Interaksi ----------
   ['#q', '#fStatus', '#fSource'].forEach((s) => $(s).addEventListener('input', renderList));
   document.querySelectorAll('th button[data-sort]').forEach((b) => b.addEventListener('click', () => {
-    sort = sort.key === b.dataset.sort ? { key: sort.key, dir: -sort.dir } : { key: b.dataset.sort, dir: b.dataset.sort === 'company' || b.dataset.sort === 'source' ? 1 : -1 };
+    sort = sort.key === b.dataset.sort ? { key: sort.key, dir: -sort.dir } : { key: b.dataset.sort, dir: ['company', 'source', 'nextStep'].includes(b.dataset.sort) ? 1 : -1 };
     renderList();
   }));
-  document.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => {
-    view = b.dataset.view;
-    document.querySelectorAll('[data-view]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  function setView(v) {
+    view = v === 'board' ? 'board' : 'table';
+    document.querySelectorAll('[data-view]').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.view === view)));
     $('#tableView').hidden = view !== 'table';
     $('#boardView').hidden = view !== 'board';
+  }
+  document.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => {
+    setView(b.dataset.view);
     try { localStorage.setItem(KEY + '.view', view); } catch (e) {}
   }));
-  try { const v = localStorage.getItem(KEY + '.view'); if (v === 'board') document.querySelector('[data-view="board"]').click(); } catch (e) {}
+  try { setView(localStorage.getItem(KEY + '.view')); } catch (e) {}
 
   document.addEventListener('click', (e) => {
     const ed = e.target.closest('[data-edit]');
-    if (ed) return openForm(ed.dataset.edit);
-    const li = e.target.closest('#todo li[data-id]');
-    if (li) openForm(li.dataset.id);
+    if (ed && !dragJustEnded) return openForm(ed.dataset.edit);
+    const done = e.target.closest('[data-done]');
+    if (done) {
+      const cur = apps.find((x) => x.id === done.dataset.done); if (!cur) return;
+      putApp({ ...cur, nextStep: '', nextDate: '', updatedAt: iso(today) }).then(() => toast(`${cur.company}: "${cur.nextStep || 'langkah'}" ditandai selesai. Perbarui statusnya kalau ada perubahan.`));
+      return;
+    }
+    const touched = e.target.closest('[data-touched]');
+    if (touched) {
+      const cur = apps.find((x) => x.id === touched.dataset.touched); if (!cur) return;
+      putApp({ ...cur, updatedAt: iso(today) }).then(() => toast(`${cur.company}: follow up dicatat hari ini.`));
+      return;
+    }
+    const rs = e.target.closest('[data-resched]');
+    if (rs) { rescheduling = rs.dataset.resched; renderActions(actionItems()); const inp = document.querySelector(`[data-resched-date="${CSS.escape(rescheduling)}"]`); inp && inp.focus(); return; }
+    const rss = e.target.closest('[data-resched-save]');
+    if (rss) {
+      const id = rss.dataset.reschedSave, cur = apps.find((x) => x.id === id);
+      const val = document.querySelector(`[data-resched-date="${CSS.escape(id)}"]`)?.value;
+      if (!cur || !val) return;
+      rescheduling = null;
+      putApp({ ...cur, nextDate: val, updatedAt: iso(today) }).then(() => toast(`${cur.company}: dijadwalkan ulang ke ${fmtDate(val)}.`));
+    }
   });
-  $('#todo').addEventListener('keydown', (e) => { const li = e.target.closest('li[data-id]'); if (li && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openForm(li.dataset.id); } });
-  $('#tbody').addEventListener('change', (e) => {
+  document.addEventListener('change', (e) => {
     const s = e.target.closest('select[data-status]');
-    if (!s) return;
-    const cur = apps.find((x) => x.id === s.dataset.status);
+    if (s) changeStatus(s.dataset.status, s.value);
+  });
+
+  // board: drag a card onto another column to change its status (desktop; on phones a tap opens the detail)
+  let dragId = null, dragJustEnded = false;
+  const board = $('#boardView');
+  board.addEventListener('dragstart', (e) => {
+    const card = e.target.closest('.kcard'); if (!card) return;
+    dragId = card.dataset.id; card.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragId);
+  });
+  board.addEventListener('dragend', (e) => {
+    e.target.closest('.kcard')?.classList.remove('dragging');
+    board.querySelectorAll('.drop-ok').forEach((c) => c.classList.remove('drop-ok'));
+    dragId = null; dragJustEnded = true; setTimeout(() => (dragJustEnded = false), 50);
+  });
+  board.addEventListener('dragover', (e) => {
+    const col = e.target.closest('.col'); if (!col || !dragId) return;
+    e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+    board.querySelectorAll('.drop-ok').forEach((c) => c !== col && c.classList.remove('drop-ok'));
+    col.classList.add('drop-ok');
+  });
+  board.addEventListener('dragleave', (e) => { const col = e.target.closest('.col'); if (col && !col.contains(e.relatedTarget)) col.classList.remove('drop-ok'); });
+  board.addEventListener('drop', (e) => {
+    const col = e.target.closest('.col'); if (!col || !dragId) return;
+    e.preventDefault();
+    const id = dragId, key = col.dataset.col;
+    const cur = apps.find((x) => x.id === id);
     if (!cur) return;
-    const a = { ...cur, status: s.value, updatedAt: iso(today) };
-    const prev = cur.status;
-    if (BY_ID[a.status].group === 'closed' && !a.lastStage) a.lastStage = BY_ID[prev].group === 'closed' ? 'applied' : (prev === 'offer' || prev === 'accepted' ? 'final' : prev);
-    putApp(a).then((ok) => ok && toast(`${a.company}: status jadi ${BY_ID[a.status].label}`));
+    if (key === 'closed') { if (groupOf(cur) !== 'closed') changeStatus(id, 'rejected'); }
+    else changeStatus(id, key);
   });
 
   // ---------- Form ----------
@@ -269,25 +448,51 @@
   $('#f-source').addEventListener('change', syncFormVis);
   $('#f-status').addEventListener('change', syncFormVis);
 
+  // timeline: only events this application's fields actually record
+  function timelineFor(a) {
+    const ev = [];
+    if (a.appliedDate) ev.push({ cls: 't-done', t: a.status === 'contacted' ? 'Dihubungi recruiter' : 'Melamar', s: `${fmtDate(a.appliedDate)}${a.source ? ' · ' + a.source : ''}` });
+    const g = groupOf(a);
+    if (g === 'closed') {
+      if (a.lastStage && a.lastStage !== 'applied' && a.lastStage !== 'contacted') ev.push({ cls: 't-done', t: `Sampai ${BY_ID[a.lastStage]?.label || a.lastStage}`, s: '' });
+      ev.push({ cls: 't-end', t: BY_ID[a.status].label, s: a.updatedAt ? fmtDate(a.updatedAt) : '' });
+    } else if (!isStart(a)) {
+      ev.push({ cls: g === 'win' ? 't-win' : 't-done', t: BY_ID[a.status].label, s: a.updatedAt ? `update ${fmtDate(a.updatedAt)}` : '' });
+    }
+    if (a.nextStep || a.nextDate) ev.push({ cls: 't-next', t: a.nextStep || 'Langkah berikutnya', s: a.nextDate ? fmtDate(a.nextDate) : '' });
+    return ev;
+  }
+
   function openForm(id) {
     editing = id ? apps.find((a) => a.id === id) : null;
     form.reset();
     const a = editing || { source: 'LinkedIn', status: 'applied', appliedDate: iso(today) };
     [...form.elements].forEach((el) => { if (el.name) el.value = a[el.name] ?? (el.name === 'lastStage' ? 'applied' : ''); });
-    $('#dlgTitle').textContent = editing ? 'Edit lamaran' : 'Tambah lamaran';
-    $('#delBtn').hidden = !editing; $('#delBtn').textContent = 'Hapus lamaran'; delArmed = false;
+    $('#dlgTitle').textContent = editing ? editing.company : 'Tambah lamaran';
+    const tl = editing ? timelineFor(editing) : [];
+    $('#timeline').hidden = !tl.length;
+    $('#timeline').innerHTML = tl.map((x) => `<li class="${x.cls}"><b>${esc(x.t)}</b>${x.s ? `<span>${esc(x.s)}</span>` : ''}</li>`).join('');
+    $('#moreFields').open = !!(editing && (editing.contact || editing.link || editing.notes));
+    $('#delBtn').hidden = !editing; $('#delBtn').textContent = 'Hapus'; $('#delBtn').classList.remove('armed'); delArmed = false;
     $('#formErr').hidden = true;
+    ['#f-company', '#f-position'].forEach((s) => $(s).removeAttribute('aria-invalid'));
     syncFormVis();
     dlg.showModal();
-    $('#f-company').focus();
+    if (!matchMedia('(pointer: coarse)').matches) $('#f-company').focus();   // no surprise keyboard on phones
   }
-  $('#addBtn').addEventListener('click', () => openForm(null));
+  document.addEventListener('click', (e) => { if (e.target.closest('[data-add]')) openForm(null); });
   $('#cancelBtn').addEventListener('click', () => dlg.close());
+  $('#dlgX').addEventListener('click', () => dlg.close());
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     const data = Object.fromEntries(new FormData(form).entries());
-    Object.keys(data).forEach((k) => (data[k] = data[k].trim()));
-    if (!data.company || !data.position) { $('#formErr').hidden = false; return; }
+    Object.keys(data).forEach((k) => (data[k] = String(data[k]).trim()));
+    if (!data.company || !data.position) {
+      $('#formErr').hidden = false;
+      ['company', 'position'].forEach((k) => $('#f-' + k).setAttribute('aria-invalid', String(!data[k])));
+      $(!data.company ? '#f-company' : '#f-position').focus();
+      return;
+    }
     if (data.source !== 'Referral') data.referrer = '';
     if (BY_ID[data.status].group !== 'closed') data.lastStage = '';
     data.updatedAt = iso(today);
@@ -297,7 +502,8 @@
     putApp(rec).then((ok) => ok && toast(wasEdit ? 'Perubahan disimpan' : 'Lamaran ditambahkan'));
   });
   $('#delBtn').addEventListener('click', () => {
-    if (!delArmed) { delArmed = true; $('#delBtn').textContent = 'Klik lagi untuk menghapus'; clearTimeout(delT); delT = setTimeout(() => { delArmed = false; $('#delBtn').textContent = 'Hapus lamaran'; }, 3000); return; }
+    const b = $('#delBtn');
+    if (!delArmed) { delArmed = true; b.textContent = 'Ketuk lagi untuk hapus'; b.classList.add('armed'); clearTimeout(delT); delT = setTimeout(() => { delArmed = false; b.textContent = 'Hapus'; b.classList.remove('armed'); }, 3000); return; }
     const id = editing.id;
     dlg.close();
     removeApp(id).then((ok) => ok && toast('Lamaran dihapus'));
@@ -314,8 +520,9 @@
     const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const lines = [COLS.join(','), ...apps.map((a) => COLS.map((c) => q(c === 'status' || c === 'lastStage' ? (BY_ID[a[c]]?.label || '') : a[c])).join(','))];
     download(`lamaran-kerja-${iso(today)}.csv`, '﻿' + lines.join('\r\n'), 'text/csv');
+    toast('CSV diunduh');
   });
-  $('#exportJson').addEventListener('click', () => download(`lamaran-kerja-backup-${iso(today)}.json`, JSON.stringify(apps, null, 2), 'application/json'));
+  $('#exportJson').addEventListener('click', () => { download(`lamaran-kerja-backup-${iso(today)}.json`, JSON.stringify(apps, null, 2), 'application/json'); toast('Backup JSON diunduh'); });
   $('#importBtn').addEventListener('click', () => $('#importFile').click());
   $('#importFile').addEventListener('change', (e) => {
     const f = e.target.files[0]; if (!f) return;
@@ -333,13 +540,12 @@
         const res = await SheetStore.importApps(list, (n, all) => setStatus('saving', `Mengimpor ${n}/${all}…`));
         await reload();
         if (res.failed.length) { setStatus('error', 'Sebagian belum masuk'); return toast(`Belum masuk: ${res.failed.flatMap((f) => f.ids).join(', ')}. Impor lagi untuk mencoba sisanya.`); }
-        setStatus('saved', 'Tersinkron');
+        setStatus('saved');
         return toast(`${list.length} lamaran diimpor. Sheet berisi ${res.total ?? list.length} lamaran.`);
       }
       for (const a of list) await SheetStore.set(a);
       await reload();
-      const n = list.length;
-      toast(`${n} lamaran diimpor`);
+      toast(`${list.length} lamaran diimpor`);
     };
     r.readAsText(f);
   });
@@ -352,7 +558,20 @@
     document.querySelectorAll('[data-panel]').forEach((p) => (p.hidden = p.dataset.panel !== tab));
     try { history.replaceState(null, '', '#' + tab); } catch (e) {}
   }
-  document.querySelector('nav.tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) showTab(b.dataset.tab); });
+  document.querySelector('nav.tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) { showTab(b.dataset.tab); window.scrollTo({ top: 0 }); } });
+
+  // ---------- Menu "Lainnya" ----------
+  const more = $('#more');
+  document.addEventListener('click', (e) => { if (e.target.closest('[data-more]')) more.showModal(); });
+  $('#m-close').addEventListener('click', () => more.close());
+  more.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-act]');
+    if (!b) { if (e.target === more) more.close(); return; }
+    more.close();
+    if (b.dataset.act === 'connect') openConnect(); else $('#' + b.dataset.act).click();
+  });
+  // a tap on the dimmed backdrop closes any sheet
+  [dlg].forEach((d) => d.addEventListener('click', (e) => { if (e.target === d) d.close(); }));
 
   // ---------- Sambungan ke Google Sheets ----------
   const cdlg = $('#connect');
@@ -373,7 +592,7 @@
   $('#c-disconnect').addEventListener('click', () => { SheetStore.disconnect(); location.reload(); });
   SheetStore.on((state, d) => {
     if (state === 'synced') setStatus('saved', 'Tersinkron');
-    if (state === 'pending') setStatus('error', `${d.count} belum terkirim`);
+    if (state === 'pending') setStatus('error', `${d.count} menunggu sinkron`);
   });
 
   showTab((location.hash || '').slice(1));
@@ -385,7 +604,7 @@
     loaded = true;
     $('#local-warn').hidden = mode !== 'local';
     $('#offline-warn').hidden = mode !== 'cache';
-    if ($('#status').dataset.s !== 'error') setStatus('saved', mode === 'sheets' ? 'Tersinkron' : mode === 'cache' ? 'Offline' : 'Hanya di perangkat');
+    if ($('#status').dataset.s !== 'error') setStatus(SheetStore.pending() ? 'error' : 'saved', SheetStore.pending() ? `${SheetStore.pending()} menunggu sinkron` : undefined);
     render();
   })();
 })();

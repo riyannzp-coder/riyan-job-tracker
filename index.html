@@ -3,154 +3,219 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Job Search Tracker</title>
-<meta name="theme-color" content="#00CEC8">
+<title>Riyan Job Search</title>
+<meta name="theme-color" content="#FFFFFF">
 <meta name="robots" content="noindex">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Job Search">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<div class="band"><div class="band-in">
-  <header class="top">
-    <div>
-      <div class="eyebrow">Pencarian kerja · <span id="todayLbl"></span></div>
-      <h1>Job Search Tracker</h1>
-      <p class="sub" id="takeaway">Memuat data lamaran…</p>
+<header class="appbar">
+  <div class="appbar-in">
+    <div class="brand">
+      <div class="eyebrow">Pencarian kerja aktif · <span id="todayLbl"></span></div>
+      <h1>Riyan Job Search</h1>
     </div>
-    <div class="top-tools">
-      <div class="row-tools">
-        <button type="button" class="conn-btn" data-connect aria-label="Sambungan data">Sambungan</button>
-        <div class="status" id="status" data-s="idle"><span class="dot"></span><span id="status-t">Memuat…</span></div>
-      </div>
-      <div class="actions">
-        <button class="primary" id="addBtn" type="button">+ Tambah lamaran</button>
-        <button type="button" id="exportCsv">Ekspor CSV</button>
-        <button type="button" id="exportJson">Backup JSON</button>
-        <button type="button" id="importBtn">Impor JSON</button>
-        <input type="file" id="importFile" accept=".json,application/json" hidden>
-      </div>
+    <div class="appbar-tools">
+      <div class="sync" id="status" data-s="idle" role="status"><span class="dot" aria-hidden="true"></span><span id="status-t">Memuat…</span></div>
+      <button class="btn primary add-desktop" id="addBtn" type="button" data-add><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Tambah lamaran</button>
+      <button type="button" class="btn icon" data-more aria-label="Menu lainnya: ekspor, backup, impor, sambungan"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>
     </div>
-  </header>
-  <nav class="tabs" role="tablist">
-    <button type="button" role="tab" data-tab="ringkasan" aria-selected="true">Ringkasan</button>
-    <button type="button" role="tab" data-tab="lamaran" aria-selected="false">Lamaran</button>
+  </div>
+  <nav class="tabs" role="tablist" aria-label="Halaman">
+    <button type="button" role="tab" data-tab="ringkasan" aria-selected="true"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13h8V3H3zM13 21h8v-8h-8zM13 3v8h8V3zM3 21h8v-6H3z"/></svg><span>Ringkasan</span></button>
+    <button type="button" class="nav-add" data-add aria-label="Tambah lamaran"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button type="button" role="tab" data-tab="lamaran" aria-selected="false"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg><span>Lamaran</span></button>
   </nav>
-</div></div>
-<div class="wrap">
+</header>
 
-  <div class="warn" id="local-warn" hidden><b>Belum tersambung ke Google Sheets</b><span>Lamaran baru hanya tersimpan di perangkat ini. Sambungkan sekali di setiap perangkat, setelah itu semua data tersimpan di Sheet milik Anda.</span><div><button type="button" class="primary" data-connect>Sambungkan sekarang</button></div></div>
+<main class="wrap">
+  <div class="warn" id="local-warn" hidden><b>Belum tersambung ke Google Sheets</b><span>Lamaran baru hanya tersimpan di perangkat ini. Sambungkan sekali di setiap perangkat, setelah itu semua data tersimpan di Sheet milik Anda.</span><div><button type="button" class="btn primary sm" data-connect>Sambungkan sekarang</button></div></div>
   <div class="warn" id="offline-warn" hidden><b>Sedang offline</b><span>Menampilkan data terakhir di perangkat ini. Isian baru disimpan dulu di sini dan dikirim ke Sheets begitu koneksi kembali.</span></div>
 
-  <div class="tabpanel" data-panel="ringkasan">
-  <section class="kpis" aria-label="Ringkasan">
-    <div class="kpi"><span class="eyebrow">Total lamaran</span><span class="val" id="k-total">—</span><span class="meta" id="k-total-m">—</span></div>
-    <div class="kpi"><span class="eyebrow">Masih berjalan</span><span class="val" id="k-active">—</span><span class="meta" id="k-active-m">—</span></div>
-    <div class="kpi"><span class="eyebrow">Response rate</span><span class="val" id="k-resp">—</span><span class="meta">lolos dari tahap Applied / contacted</span></div>
-    <div class="kpi"><span class="eyebrow">Sampai interview</span><span class="val" id="k-int">—</span><span class="meta" id="k-int-m">—</span></div>
-    <div class="kpi"><span class="eyebrow">Offering</span><span class="val" id="k-offer">—</span><span class="meta" id="k-offer-m">—</span></div>
-  </section>
+  <!-- ======================= Ringkasan ======================= -->
+  <div class="tabpanel" data-panel="ringkasan" id="ringkasan">
 
-  <section class="card" id="todoCard">
-    <div class="card-head">
-      <div><h2>Perlu tindakan</h2><p class="note">Jadwal 7 hari ke depan, dan lamaran aktif yang tidak ada update lebih dari 14 hari.</p></div>
-    </div>
-    <ul class="todo" id="todo"></ul>
-  </section>
-
-  <div class="grid2">
-    <section class="card">
-      <div><h2>Funnel proses</h2><p class="note">Jumlah lamaran yang pernah mencapai tiap tahap, termasuk yang kemudian ditolak di tahap itu.</p></div>
-      <div class="funnel" id="funnel"></div>
-    </section>
-    <section class="card">
-      <div><h2>Sumber lamaran</h2><p class="note">Dari mana lowongan didapat, dan seberapa sering sampai ke interview.</p></div>
-      <div class="srcs" id="sources"></div>
-      <div class="legend"><span><i class="seg-active"></i>Berjalan</span><span><i class="seg-win"></i>Offering / diterima</span><span><i class="seg-closed"></i>Ditutup</span></div>
-    </section>
-  </div>
-  </div>
-
-  <div class="tabpanel" data-panel="lamaran" hidden>
-  <section class="card">
-    <div class="card-head">
-      <div><h2>Semua lamaran</h2><p class="note" id="countNote">—</p></div>
-      <div class="seg" role="group" aria-label="Tampilan">
-        <button type="button" data-view="table" aria-pressed="true">Tabel</button>
-        <button type="button" data-view="board" aria-pressed="false">Papan</button>
+    <section class="health" aria-labelledby="h-health">
+      <div class="health-main">
+        <h2 class="label" id="h-health">Kondisi pencarian kerja</h2>
+        <p class="health-line"><b id="h-total">—</b> lamaran <span class="sep">·</span> <b id="h-active">—</b> aktif <span class="sep">·</span> <b id="h-resp">—</b> response rate</p>
+        <p class="health-insight" id="takeaway">Memuat data lamaran…</p>
       </div>
+      <dl class="kpis">
+        <div class="kpi"><dt><i class="ind ind-neutral"></i>Lamaran</dt><dd id="k-total">—</dd><small id="k-total-m">—</small></div>
+        <div class="kpi"><dt><i class="ind ind-brand"></i>Pipeline aktif</dt><dd id="k-active">—</dd><small id="k-active-m">—</small></div>
+        <div class="kpi"><dt><i class="ind ind-brand"></i>Response rate</dt><dd id="k-resp">—</dd><small>lolos dari tahap awal</small></div>
+        <div class="kpi"><dt><i class="ind ind-success"></i>Interview</dt><dd id="k-int">—</dd><small id="k-int-m">—</small></div>
+        <div class="kpi"><dt><i class="ind ind-success"></i>Offer</dt><dd id="k-offer">—</dd><small id="k-offer-m">—</small></div>
+      </dl>
+    </section>
+
+    <section class="card actions-card" id="perlu-tindakan" aria-labelledby="h-actions">
+      <div class="card-head">
+        <div><h2 id="h-actions">Perlu tindakan</h2><p class="note">Jadwal yang lewat atau dalam 7 hari, dan lamaran aktif tanpa update lebih dari 7 hari.</p></div>
+        <span class="count-badge" id="actionsCount" hidden></span>
+      </div>
+      <div id="actions" class="action-groups"></div>
+    </section>
+
+    <div class="grid2">
+      <section class="card" aria-labelledby="h-funnel">
+        <div class="card-head"><div><h2 id="h-funnel">Pipeline funnel</h2><p class="note">Lamaran yang pernah mencapai tiap tahap, termasuk yang kemudian ditutup di tahap itu.</p></div></div>
+        <ol class="funnel" id="funnel"></ol>
+      </section>
+      <section class="card" aria-labelledby="h-sources">
+        <div class="card-head"><div><h2 id="h-sources">Performa sumber</h2><p class="note">Sumber mana yang paling sering sampai ke interview.</p></div></div>
+        <div class="src-flags" id="srcFlags"></div>
+        <div class="srcs" id="sources"></div>
+      </section>
     </div>
-    <div class="toolbar">
-      <input type="search" id="q" placeholder="Cari perusahaan, posisi, catatan…" aria-label="Cari">
-      <select id="fStatus" aria-label="Filter status"></select>
-      <select id="fSource" aria-label="Filter sumber"></select>
+
+    <div class="grid2">
+      <section class="card" aria-labelledby="h-trend">
+        <div class="card-head"><div><h2 id="h-trend">Aktivitas mingguan</h2><p class="note" id="trendNote">Lamaran baru per minggu, 8 minggu terakhir.</p></div></div>
+        <div class="trend" id="trend"></div>
+      </section>
+      <section class="card" aria-labelledby="h-pipe">
+        <div class="card-head"><div><h2 id="h-pipe">Lamaran aktif</h2><p class="note">Diurutkan dari tahap terjauh. Hari dihitung sejak update terakhir.</p></div></div>
+        <ul class="pipe" id="pipeline"></ul>
+      </section>
     </div>
-    <div id="tableView" class="table-box">
-      <table>
-        <thead><tr>
-          <th><button type="button" data-sort="company">Perusahaan / posisi</button></th>
-          <th><button type="button" data-sort="source">Sumber</button></th>
-          <th><button type="button" data-sort="appliedDate">Tgl apply</button></th>
-          <th><button type="button" data-sort="status">Status</button></th>
-          <th><button type="button" data-sort="nextDate">Langkah berikutnya</button></th>
-          <th>Catatan</th>
-          <th></th>
-        </tr></thead>
-        <tbody id="tbody"></tbody>
-      </table>
-    </div>
-    <div id="boardView" class="board" hidden></div>
-  </section>
   </div>
 
-  <footer>Data tersimpan di Google Sheet milik Anda lewat Apps Script. URL dan kunci API hanya disimpan di perangkat ini. "Backup JSON" menyimpan salinan, "Ekspor CSV" bisa dibuka di Excel.</footer>
-</div>
+  <!-- ======================= Lamaran ======================= -->
+  <div class="tabpanel" data-panel="lamaran" id="lamaran" hidden>
+    <section class="card list-card">
+      <div class="card-head">
+        <div><h2>Semua lamaran</h2><p class="note" id="countNote">—</p></div>
+        <div class="seg" role="group" aria-label="Tampilan">
+          <button type="button" data-view="table" aria-pressed="true">Tabel</button>
+          <button type="button" data-view="board" aria-pressed="false">Board</button>
+        </div>
+      </div>
+      <div class="toolbar">
+        <label class="search"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" id="q" placeholder="Cari perusahaan, posisi, catatan…" aria-label="Cari lamaran"></label>
+        <select id="fStatus" aria-label="Filter status"></select>
+        <select id="fSource" aria-label="Filter sumber"></select>
+      </div>
+      <div id="tableView" class="table-box">
+        <div id="cardView" class="cards"></div>
+        <table>
+          <thead><tr>
+            <th><button type="button" data-sort="company">Perusahaan / posisi</button></th>
+            <th><button type="button" data-sort="status">Status</button></th>
+            <th><button type="button" data-sort="source">Sumber</button></th>
+            <th><button type="button" data-sort="appliedDate">Tgl apply</button></th>
+            <th><button type="button" data-sort="nextStep">Langkah berikutnya</button></th>
+            <th><button type="button" data-sort="nextDate">Tanggal</button></th>
+            <th><span class="sr">Aksi</span></th>
+          </tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <div id="boardView" class="board" hidden></div>
+    </section>
+  </div>
 
+  <footer>Data tersimpan di Google Sheet milik Anda lewat Apps Script. URL dan kunci API hanya disimpan di perangkat ini.</footer>
+</main>
+
+<!-- ======================= Form ======================= -->
 <dialog id="dlg" aria-labelledby="dlgTitle">
   <form id="form" novalidate>
-    <h2 id="dlgTitle">Tambah lamaran</h2>
-    <div class="fields">
-      <div class="field"><label for="f-company">Perusahaan <span class="req">*</span></label><input id="f-company" name="company" required></div>
-      <div class="field"><label for="f-position">Posisi <span class="req">*</span></label><input id="f-position" name="position" required></div>
-      <div class="field"><label for="f-source">Sumber</label><select id="f-source" name="source"></select></div>
-      <div class="field" id="refWrap"><label for="f-referrer">Direferensikan oleh</label><input id="f-referrer" name="referrer" placeholder="Nama & hubungan"></div>
-      <div class="field"><label for="f-appliedDate">Tanggal apply / dihubungi</label><input id="f-appliedDate" name="appliedDate" type="date"></div>
-      <div class="field"><label for="f-status">Status</label><select id="f-status" name="status"></select></div>
-      <div class="field" id="lastStageWrap" hidden><label for="f-lastStage">Berhenti di tahap</label><select id="f-lastStage" name="lastStage"></select></div>
-      <div class="field"><label for="f-workType">Tipe kerja</label><select id="f-workType" name="workType"><option value="">—</option><option>Onsite</option><option>Hybrid</option><option>Remote</option></select></div>
-      <div class="field"><label for="f-location">Lokasi</label><input id="f-location" name="location" placeholder="Jakarta Selatan"></div>
-      <div class="field"><label for="f-salary">Ekspektasi gaji</label><input id="f-salary" name="salary" placeholder="mis. 18–22 jt"></div>
-      <div class="field"><label for="f-nextStep">Langkah berikutnya</label><input id="f-nextStep" name="nextStep" placeholder="mis. Interview user via Zoom"></div>
-      <div class="field"><label for="f-nextDate">Tanggal langkah berikutnya</label><input id="f-nextDate" name="nextDate" type="date"></div>
-      <div class="field"><label for="f-contact">Kontak (HR / recruiter)</label><input id="f-contact" name="contact"></div>
-      <div class="field"><label for="f-link">Link lowongan</label><input id="f-link" name="link" type="url" placeholder="https://"></div>
-      <div class="field full"><label for="f-notes">Catatan</label><textarea id="f-notes" name="notes"></textarea></div>
+    <div class="dlg-head">
+      <h2 id="dlgTitle">Tambah lamaran</h2>
+      <button type="button" class="btn icon ghost" id="dlgX" aria-label="Tutup"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     </div>
-    <p class="note" id="formErr" hidden>Isi nama perusahaan dan posisi.</p>
+    <ol class="timeline" id="timeline" hidden></ol>
+
+    <fieldset>
+      <legend>Pekerjaan</legend>
+      <div class="fields">
+        <div class="field"><label for="f-company">Perusahaan <span class="req" aria-hidden="true">*</span></label><input id="f-company" name="company" required autocomplete="off"></div>
+        <div class="field"><label for="f-position">Posisi <span class="req" aria-hidden="true">*</span></label><input id="f-position" name="position" required autocomplete="off"></div>
+        <div class="field"><label for="f-location">Lokasi</label><input id="f-location" name="location" placeholder="Jakarta Selatan"></div>
+        <div class="field"><label for="f-workType">Tipe kerja</label><select id="f-workType" name="workType"><option value="">—</option><option>Onsite</option><option>Hybrid</option><option>Remote</option></select></div>
+        <div class="field"><label for="f-salary">Ekspektasi gaji</label><input id="f-salary" name="salary" inputmode="numeric" placeholder="mis. 25000000"></div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Lamaran</legend>
+      <div class="fields">
+        <div class="field"><label for="f-source">Sumber</label><select id="f-source" name="source"></select></div>
+        <div class="field" id="refWrap"><label for="f-referrer">Direferensikan oleh</label><input id="f-referrer" name="referrer" placeholder="Nama & hubungan"></div>
+        <div class="field"><label for="f-appliedDate">Tanggal apply / dihubungi</label><input id="f-appliedDate" name="appliedDate" type="date"></div>
+        <div class="field"><label for="f-status">Status</label><select id="f-status" name="status"></select></div>
+        <div class="field" id="lastStageWrap" hidden><label for="f-lastStage">Berhenti di tahap</label><select id="f-lastStage" name="lastStage"></select></div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Tindak lanjut</legend>
+      <div class="fields">
+        <div class="field"><label for="f-nextStep">Langkah berikutnya</label><input id="f-nextStep" name="nextStep" placeholder="mis. Interview user via Zoom"></div>
+        <div class="field"><label for="f-nextDate">Tanggal langkah berikutnya</label><input id="f-nextDate" name="nextDate" type="date"></div>
+      </div>
+    </fieldset>
+
+    <details id="moreFields">
+      <summary>Kontak, link lowongan &amp; catatan</summary>
+      <div class="fields">
+        <div class="field"><label for="f-contact">Kontak HR / recruiter</label><input id="f-contact" name="contact" placeholder="Nama, email atau nomor"></div>
+        <div class="field"><label for="f-link">Link lowongan</label><input id="f-link" name="link" type="url" placeholder="https://"></div>
+        <div class="field full"><label for="f-notes">Catatan</label><textarea id="f-notes" name="notes"></textarea></div>
+      </div>
+    </details>
+
+    <p class="form-err" id="formErr" role="alert" hidden>Isi nama perusahaan dan posisi dulu.</p>
     <div class="dlg-foot">
-      <button type="button" class="danger" id="delBtn" hidden>Hapus lamaran</button>
-      <span style="flex:1"></span>
-      <button type="button" id="cancelBtn">Batal</button>
-      <button type="submit" class="primary" id="saveBtn">Simpan</button>
+      <button type="button" class="btn danger" id="delBtn" hidden>Hapus</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn" id="cancelBtn">Batal</button>
+      <button type="submit" class="btn primary" id="saveBtn">Simpan</button>
     </div>
   </form>
 </dialog>
 
 <dialog id="connect" aria-labelledby="c-title">
   <div class="dlg">
-    <div class="eyebrow">Data store</div>
-    <h2 id="c-title">Sambungan Google Sheets</h2>
+    <div class="dlg-head"><h2 id="c-title">Sambungan Google Sheets</h2></div>
     <p class="note">Tempel URL Web App (berakhiran <code>/exec</code>) dan kunci API dari log Apps Script. Keduanya hanya disimpan di perangkat ini.</p>
     <div class="field"><label for="c-url">URL Apps Script</label><input id="c-url" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off"></div>
     <div class="field"><label for="c-key">Kunci API</label><input id="c-key" type="password" autocomplete="off"></div>
-    <div class="dlg-foot"><button type="button" class="primary" id="c-save">Simpan &amp; tes</button><button type="button" id="c-close">Tutup</button><span style="flex:1"></span><button type="button" class="danger" id="c-disconnect" hidden>Putuskan</button></div>
+    <div class="dlg-foot"><button type="button" class="btn danger" id="c-disconnect" hidden>Putuskan</button><span class="spacer"></span><button type="button" class="btn" id="c-close">Tutup</button><button type="button" class="btn primary" id="c-save">Simpan &amp; tes</button></div>
     <p class="note" id="c-msg" role="status"></p>
   </div>
 </dialog>
 
-<div class="toast" id="toast" hidden></div>
+<dialog id="more" aria-labelledby="m-title">
+  <div class="dlg">
+    <div class="dlg-head"><h2 id="m-title">Lainnya</h2></div>
+    <div class="menu-list">
+      <button type="button" data-act="exportCsv">Ekspor CSV<span>Buka di Excel atau Google Sheets</span></button>
+      <button type="button" data-act="exportJson">Backup JSON<span>Simpan salinan semua lamaran</span></button>
+      <button type="button" data-act="importBtn">Impor JSON<span>Pulihkan dari file backup</span></button>
+      <button type="button" data-act="connect">Sambungan Google Sheets<span>URL Apps Script dan kunci API</span></button>
+    </div>
+    <div class="dlg-foot"><span class="spacer"></span><button type="button" class="btn" id="m-close">Tutup</button></div>
+  </div>
+</dialog>
+<button type="button" id="exportCsv" hidden>Ekspor CSV</button>
+<button type="button" id="exportJson" hidden>Backup JSON</button>
+<button type="button" id="importBtn" hidden>Impor JSON</button>
+<input type="file" id="importFile" accept=".json,application/json" hidden>
+
+<div class="toast" id="toast" role="status" hidden></div>
 
 <script src="store.js"></script>
 <script src="app.js"></script>

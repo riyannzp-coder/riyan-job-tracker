@@ -35,7 +35,7 @@ function setup() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sh = ss.getSheetByName(TAB) || ss.insertSheet(TAB);
   sh.getRange(1, 1, 1, COLS.length).setValues([COLS.map(c => c[1])])
-    .setFontWeight('bold').setBackground('#00cec8').setFontColor('#0f2e2c');
+    .setFontWeight('bold').setBackground('#2457d6').setFontColor('#ffffff');
   sh.setFrozenRows(1);
   sh.setFrozenColumns(2);
   col_('id').setNumberFormat('@');
