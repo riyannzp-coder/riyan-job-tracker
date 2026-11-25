@@ -1,48 +1,49 @@
-/* Job Search Tracker — styles. Layout: navy band (title + tabs) over the page; Ringkasan tab = KPIs, actions, funnel & sources; Lamaran tab = table or board. */
+/* Job Search Tracker — styles. Layout: plum band (title + tabs) over the page; Ringkasan tab = KPIs, actions, funnel & sources; Lamaran tab = table or board. */
+/* Palette: plum band with an amber mark, warm plum-tinted neutrals. Status colors stay semantic (green = offering, brick = closed). */
 :root {
-  --bg: #f2f3ef;
+  --bg: #f6f3f5;
   --surface: #ffffff;
-  --surface-2: #e9ebe5;
-  --line: #d7dad2;
-  --fg: #1a1d1b;
-  --muted: #5d645e;
-  --accent: #2443b8;
-  --accent-soft: #e3e8fa;
-  --st-active: #2443b8;
+  --surface-2: #eee8ec;
+  --line: #ddd3da;
+  --fg: #1f1a1e;
+  --muted: #675c64;
+  --accent: #7a2e6e;
+  --accent-soft: #f3e3ef;
+  --st-active: #7a2e6e;
   --st-win: #1d7647;
   --st-closed: #a04634;
   --st-wait: #9a6400;
-  --st-active-bg: #e3e8fa;
+  --st-active-bg: #f3e3ef;
   --st-win-bg: #dcf0e3;
   --st-closed-bg: #f6e1dc;
   --st-wait-bg: #f7ead0;
-  --shadow: 0 1px 2px rgba(20,24,22,.06), 0 8px 24px rgba(20,24,22,.06);
+  --shadow: 0 1px 2px rgba(31,26,30,.06), 0 8px 24px rgba(31,26,30,.06);
   --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
   --font-body: "Plus Jakarta Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
   --radius: 10px;
-  /* band header: navy in both themes, like Workout Dash */
-  --band: #14244f;
-  --band-2: #1f3570;
+  /* band header: plum in both themes */
+  --band: #3a1736;
+  --band-2: #5a2752;
   --on-band: #ffffff;
-  --on-band-muted: #b7c3e2;
+  --on-band-muted: #dcc3d6;
   --band-mark: #f2a456;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #111412; --surface: #191d1a; --surface-2: #222723; --line: #2f3530;
-    --fg: #e9ece8; --muted: #9aa29b; --accent: #8fa3ff; --accent-soft: #232b4d;
-    --st-active: #9db0ff; --st-win: #6fd39a; --st-closed: #f09a86; --st-wait: #e8b55a;
-    --st-active-bg: #232b4d; --st-win-bg: #173323; --st-closed-bg: #3a201a; --st-wait-bg: #382a10;
+    --bg: #151114; --surface: #1e181c; --surface-2: #2a2228; --line: #3a3037;
+    --fg: #efe8ed; --muted: #a89aa4; --accent: #e6a3d9; --accent-soft: #3d2338;
+    --st-active: #e6a3d9; --st-win: #6fd39a; --st-closed: #f09a86; --st-wait: #e8b55a;
+    --st-active-bg: #3d2338; --st-win-bg: #173323; --st-closed-bg: #3a201a; --st-wait-bg: #382a10;
     --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #111412; --surface: #191d1a; --surface-2: #222723; --line: #2f3530;
-  --fg: #e9ece8; --muted: #9aa29b; --accent: #8fa3ff; --accent-soft: #232b4d;
-  --st-active: #9db0ff; --st-win: #6fd39a; --st-closed: #f09a86; --st-wait: #e8b55a;
-  --st-active-bg: #232b4d; --st-win-bg: #173323; --st-closed-bg: #3a201a; --st-wait-bg: #382a10;
+  --bg: #151114; --surface: #1e181c; --surface-2: #2a2228; --line: #3a3037;
+    --fg: #efe8ed; --muted: #a89aa4; --accent: #e6a3d9; --accent-soft: #3d2338;
+    --st-active: #e6a3d9; --st-win: #6fd39a; --st-closed: #f09a86; --st-wait: #e8b55a;
+    --st-active-bg: #3d2338; --st-win-bg: #173323; --st-closed-bg: #3a201a; --st-wait-bg: #382a10;
   --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
   color-scheme: dark;
 }
