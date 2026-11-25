@@ -1,0 +1,4 @@
+# personal job-search data and exports never go into the repo
+private/
+*.export.json
+.claude/
