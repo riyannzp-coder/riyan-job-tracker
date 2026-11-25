@@ -1,49 +1,50 @@
-/* Job Search Tracker — styles. Layout: plum band (title + tabs) over the page; Ringkasan tab = KPIs, actions, funnel & sources; Lamaran tab = table or board. */
-/* Palette: plum band with an amber mark, warm plum-tinted neutrals. Status colors stay semantic (green = offering, brick = closed). */
+/* Job Search Tracker — styles. Layout: teal band (title + tabs) over the page; Ringkasan tab = KPIs, actions, funnel & sources; Lamaran tab = table or board. */
+/* Palette "Tropical heat": teal #00CEC8 band, cream #FCEFC3 ground, peach #FF9C5F, red-orange #EB4203 accent.
+   Status: teal = berjalan, green = offering, warm grey = ditutup, peach = perlu perhatian. */
 :root {
-  --bg: #f6f3f5;
-  --surface: #ffffff;
-  --surface-2: #eee8ec;
-  --line: #ddd3da;
-  --fg: #1f1a1e;
-  --muted: #675c64;
-  --accent: #7a2e6e;
-  --accent-soft: #f3e3ef;
-  --st-active: #7a2e6e;
+  --bg: #fcefc3;
+  --surface: #fffdf6;
+  --surface-2: #f6e6b6;
+  --line: #e8d8a6;
+  --fg: #1f1b14;
+  --muted: #6b6150;
+  --accent: #eb4203;
+  --accent-soft: #ffe0cc;
+  --st-active: #007a76;
   --st-win: #1d7647;
-  --st-closed: #a04634;
-  --st-wait: #9a6400;
-  --st-active-bg: #f3e3ef;
+  --st-closed: #7a6e62;
+  --st-wait: #b4480f;
+  --st-active-bg: #c9f3f1;
   --st-win-bg: #dcf0e3;
-  --st-closed-bg: #f6e1dc;
-  --st-wait-bg: #f7ead0;
-  --shadow: 0 1px 2px rgba(31,26,30,.06), 0 8px 24px rgba(31,26,30,.06);
+  --st-closed-bg: #ece2cc;
+  --st-wait-bg: #ffe1cb;
+  --shadow: 0 1px 2px rgba(31,27,20,.06), 0 8px 24px rgba(31,27,20,.08);
   --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
   --font-body: "Plus Jakarta Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
   --radius: 10px;
-  /* band header: plum in both themes */
-  --band: #3a1736;
-  --band-2: #5a2752;
-  --on-band: #ffffff;
-  --on-band-muted: #dcc3d6;
-  --band-mark: #f2a456;
+  /* band header: tropical teal in both themes, dark ink on it */
+  --band: #00cec8;
+  --band-2: #00aaa5;
+  --on-band: #0f2e2c;
+  --on-band-muted: #145a56;
+  --band-mark: #eb4203;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #151114; --surface: #1e181c; --surface-2: #2a2228; --line: #3a3037;
-    --fg: #efe8ed; --muted: #a89aa4; --accent: #e6a3d9; --accent-soft: #3d2338;
-    --st-active: #e6a3d9; --st-win: #6fd39a; --st-closed: #f09a86; --st-wait: #e8b55a;
-    --st-active-bg: #3d2338; --st-win-bg: #173323; --st-closed-bg: #3a201a; --st-wait-bg: #382a10;
+    --bg: #15130e; --surface: #1e1b14; --surface-2: #29251b; --line: #3b3527;
+    --fg: #f5eed8; --muted: #b3a98f; --accent: #ff9c5f; --accent-soft: #3d2312;
+    --st-active: #3fe0da; --st-win: #6fd39a; --st-closed: #b8ad9c; --st-wait: #ffb98a;
+    --st-active-bg: #0f3533; --st-win-bg: #173323; --st-closed-bg: #2d2920; --st-wait-bg: #3a2312;
     --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #151114; --surface: #1e181c; --surface-2: #2a2228; --line: #3a3037;
-    --fg: #efe8ed; --muted: #a89aa4; --accent: #e6a3d9; --accent-soft: #3d2338;
-    --st-active: #e6a3d9; --st-win: #6fd39a; --st-closed: #f09a86; --st-wait: #e8b55a;
-    --st-active-bg: #3d2338; --st-win-bg: #173323; --st-closed-bg: #3a201a; --st-wait-bg: #382a10;
+  --bg: #15130e; --surface: #1e1b14; --surface-2: #29251b; --line: #3b3527;
+    --fg: #f5eed8; --muted: #b3a98f; --accent: #ff9c5f; --accent-soft: #3d2312;
+    --st-active: #3fe0da; --st-win: #6fd39a; --st-closed: #b8ad9c; --st-wait: #ffb98a;
+    --st-active-bg: #0f3533; --st-win-bg: #173323; --st-closed-bg: #2d2920; --st-wait-bg: #3a2312;
   --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
   color-scheme: dark;
 }
@@ -208,15 +209,15 @@ footer { color: var(--muted); font-size: .8rem; }
 .band h1 { color: var(--on-band); }
 .band .eyebrow, .band .sub { color: var(--on-band-muted); }
 .top-tools { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
-.band .actions button { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.22); color: var(--on-band); }
+.band .actions button { background: rgba(255,255,255,.35); border-color: rgba(15,46,44,.25); color: var(--on-band); }
 .band .actions button:hover { border-color: var(--on-band); }
-.band .actions button.primary { background: var(--on-band); border-color: var(--on-band); color: var(--band); }
+.band .actions button.primary { background: var(--accent); border-color: var(--accent); color: #fffdf6; }
 .band :focus-visible { outline-color: var(--band-mark); }
-.status { display: inline-flex; align-items: center; gap: 8px; font-size: .78rem; color: var(--on-band-muted); background: rgba(255,255,255,.08); padding: 5px 10px; border-radius: 99px; }
-.status .dot { width: 8px; height: 8px; border-radius: 50%; background: #4cc27f; }
+.status { display: inline-flex; align-items: center; gap: 8px; font-size: .78rem; color: var(--on-band-muted); background: rgba(255,255,255,.35); padding: 5px 10px; border-radius: 99px; }
+.status .dot { width: 8px; height: 8px; border-radius: 50%; background: #1d7647; }
 .status[data-s="idle"] .dot { background: var(--on-band-muted); }
-.status[data-s="saving"] .dot { background: #f2a456; }
-.status[data-s="error"] .dot { background: #f27e64; }
+.status[data-s="saving"] .dot { background: #ff9c5f; }
+.status[data-s="error"] .dot { background: #eb4203; }
 nav.tabs { display: flex; gap: 4px; overflow-x: auto; margin-top: 18px; scrollbar-width: none; }
 nav.tabs button { all: unset; cursor: pointer; font: 600 .95rem var(--font-body); color: var(--on-band-muted); padding: 8px 14px 10px; border-bottom: 4px solid transparent; margin-bottom: -4px; white-space: nowrap; }
 nav.tabs button:hover { color: var(--on-band); }
@@ -236,7 +237,7 @@ nav.tabs button:focus-visible { outline: 2px solid var(--band-mark); outline-off
 
 /* Sambungan ke Google Sheets */
 .row-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.conn-btn { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.22); color: var(--on-band); padding: 5px 10px; font-size: .78rem; border-radius: 99px; }
+.conn-btn { background: rgba(255,255,255,.35); border-color: rgba(15,46,44,.25); color: var(--on-band); padding: 5px 10px; font-size: .78rem; border-radius: 99px; }
 .conn-btn:hover { border-color: var(--on-band); }
 .dlg { padding: 20px; display: grid; gap: 12px; }
 .dlg .eyebrow { color: var(--muted); }
