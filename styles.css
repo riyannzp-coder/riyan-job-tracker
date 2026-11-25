@@ -50,6 +50,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }   /* component display rules must never un-hide an element */
 html, body { margin: 0; }
 body { background: var(--bg); color: var(--fg); font: 14px/1.5 var(--font); font-variant-numeric: tabular-nums; -webkit-tap-highlight-color: transparent; }
 h1, h2, h3 { margin: 0; text-wrap: balance; }
