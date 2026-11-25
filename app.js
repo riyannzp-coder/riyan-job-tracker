@@ -336,7 +336,7 @@
       const next = a.nextStep || a.nextDate ? `<span class="acard-next">Berikutnya: ${esc(a.nextStep || '—')}${a.nextDate ? ` · ${fmtShort(a.nextDate)}` : ''}</span>` : '';
       return `<article class="acard">
         <button type="button" class="acard-main" data-edit="${esc(a.id)}">
-          <span class="acard-top"><b>${esc(a.company)}</b><span class="age ${isOpen(a) ? ageCls(since) : ''}">${since !== null ? since + ' hr' : ''}</span></span>
+          <span class="acard-top"><b>${esc(a.company)}</b><span class="age ${isOpen(a) ? ageCls(since) : ''}">${since !== null ? since + ' hari' : ''}</span></span>
           <span class="pos">${esc(a.position)}</span>
           <span class="acard-meta"><span class="chip">${esc(a.source || '—')}</span><span class="age">Apply ${fmtShort(a.appliedDate)}</span></span>
           ${next}
